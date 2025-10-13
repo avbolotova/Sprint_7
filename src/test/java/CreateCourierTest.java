@@ -1,42 +1,35 @@
-import io.qameta.allure.Allure;
+import com.github.javafaker.Faker;
 import io.qameta.allure.Description;
-import io.qameta.allure.Step;
 import io.qameta.allure.junit4.DisplayName;
-import io.restassured.RestAssured;
 import io.restassured.response.Response;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-
-import java.io.File;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Logger;
 
-import static io.restassured.RestAssured.given;
+
+import static org.apache.http.HttpStatus.*;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.notNullValue;
 
 public class CreateCourierTest {
 
+    private static final Logger logger = Logger.getLogger(LoginCourierTest.class.getName());
     private List<Integer> courierIdsToDelete = new ArrayList<>();
+    private ApiClient apiClient;
+    private Faker faker;
 
     @Before
     public void setUp() {
-        RestAssured.baseURI = "https://qa-scooter.praktikum-services.ru";
         courierIdsToDelete.clear();
+        apiClient = new ApiClient();
+        faker = new Faker();
     }
 
     public int getCourierId(String login, String password) {
-        String loginJson = "{ \"login\": \"" + login + "\", \"password\": \"" + password + "\" }";
-
-        Response loginResponse =
-                given()
-                        .header("Content-type", "application/json")
-                        .body(loginJson)
-                        .when()
-                        .post("/api/v1/courier/login");
-
+        Courier courier = new Courier(login, password);
+        Response loginResponse = apiClient.loginCourier(courier);
         return loginResponse.then().extract().path("id");
     }
 
@@ -44,13 +37,7 @@ public class CreateCourierTest {
     public void tearDown() {
         for (Integer id : courierIdsToDelete) {
             try {
-                given()
-                        .when()
-                        .delete("/api/v1/courier/" + id)
-                        .then()
-                        .statusCode(200)
-                        .and()
-                        .body("ok", equalTo(true));
+                apiClient.deleteCourier(id);
             } catch (Exception e) {
             }
         }
@@ -59,47 +46,48 @@ public class CreateCourierTest {
     @Test
     @DisplayName("Создание курьера c валидными данными")
     @Description("Positive test: endpoint /api/v1/courier")
-    public void createNewCourier(){
-        Courier courier = new Courier("alpav9190", "1234", "alpav9190");
+    public void createNewCourier() {
+        String login = faker.name().username();
+        String password = "1234";
+        String firstName = faker.name().firstName();
 
-        Response response =
-                given()
-                        .header("Content-type", "application/json")
-                        .and()
-                        .body(courier.toJson())
-                        .when()
-                        .post("/api/v1/courier");
-        response.then().assertThat()
-                .statusCode(201)
-                .and()
-                .body("ok", equalTo(true));
+        logger.info("Создание курьера с логином: " + login);
 
-        int id = getCourierId(courier.getLogin(), courier.getPassword());
-        courierIdsToDelete.add(id);
+        Courier courier = new Courier(login, password, firstName);
+
+        Response response = apiClient.createCourier(courier);
+
+        try {
+            response.then().assertThat()
+                    .statusCode(SC_CREATED)
+                    .and()
+                    .body("ok", equalTo(true));
+
+        } finally {
+            int id = getCourierId(courier.getLogin(), courier.getPassword());
+            courierIdsToDelete.add(id);
+        }
     }
 
     @Test
     @DisplayName("Ожидание ошибки 409 при создании дубликата-курьера")
     @Description("Negative test: endpoint /api/v1/courier")
-    public void createDublicateCourier(){
-        Courier courier = new Courier("alpav2552", "1234", "alpav2552");
+    public void createDublicateCourier() {
+
+        String login = faker.name().username();
+        String password = "1234";
+        String firstName = faker.name().firstName();
+
+        logger.info("Создание курьера с логином: " + login);
+
+        Courier courier = new Courier(login, password, firstName);
 
         try {
-            given()
-                    .header("Content-type", "application/json")
-                    .body(courier.toJson())
-                    .when()
-                    .post("/api/v1/courier");
+            apiClient.createCourier(courier);
+            Response response = apiClient.createCourier(courier);
 
-            Response response =
-                    given()
-                            .header("Content-type", "application/json")
-                            .and()
-                            .body(courier.toJson())
-                            .when()
-                            .post("/api/v1/courier");
             response.then().assertThat()
-                    .statusCode(409)
+                    .statusCode(SC_CONFLICT)
                     .and()
                     .body("message", equalTo("Этот логин уже используется"));
         } finally {
@@ -112,29 +100,27 @@ public class CreateCourierTest {
     @Test
     @DisplayName("Ожидание ошибки 400 при создании курьера без поля login")
     @Description("Negative test: endpoint /api/v1/courier")
-    public void createNewCourierWithoutLogin(){
-        String firstName = "alpav9192";
-        String password = "1234";
-        String json = "{ \"firstName\": \"" + firstName + "\", \"password\": \"" + password + "\" }";
+    public void createNewCourierWithoutLogin() {
 
-        Response response =
-                given()
-                        .header("Content-type", "application/json")
-                        .and()
-                        .body(json)
-                        .when()
-                        .post("/api/v1/courier");
+        Courier courier = new Courier();
+        courier.setPassword("1234");
+        courier.setFirstName(faker.name().firstName());
 
-        if (response.getStatusCode() == 201) {
+        logger.info("Создание курьера с логином: " + courier.getFirstName());
+
+        Response response = apiClient.createCourier(courier);
+
+        if (response.getStatusCode() == SC_CREATED) {
             try {
-                int id = getCourierId(firstName, password);
+                int id = getCourierId(courier.getLogin(), courier.getPassword());
                 courierIdsToDelete.add(id);
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
             throw new AssertionError("Ожидался статус 400, но курьер был создан (статус 201).");
         }
 
         response.then().assertThat()
-                .statusCode(400)
+                .statusCode(SC_BAD_REQUEST)
                 .and()
                 .body("message", equalTo("Недостаточно данных для создания учетной записи"));
     }
@@ -142,29 +128,27 @@ public class CreateCourierTest {
     @Test
     @DisplayName("Ожидание ошибки 400 при создании курьера без поля password")
     @Description("Negative test: endpoint /api/v1/courier")
-    public void createNewCourierWithoutPassword(){
-        String login = "alpav9193";
-        String firstName = "alpav9193";
-        String json = "{ \"login\": \"" + login + "\", \"firstName\": \"" + firstName + "\" }";
+    public void createNewCourierWithoutPassword() {
 
-        Response response =
-                given()
-                        .header("Content-type", "application/json")
-                        .and()
-                        .body(json)
-                        .when()
-                        .post("/api/v1/courier");
+        Courier courier = new Courier();
+        courier.setLogin(faker.name().username());
+        courier.setFirstName(faker.name().firstName());
 
-        if (response.getStatusCode() == 201) {
+        logger.info("Создание курьера с логином: " + courier.getLogin());
+
+        Response response = apiClient.createCourier(courier);
+
+        if (response.getStatusCode() == SC_CREATED) {
             try {
-                int id = getCourierId(login, firstName);
+                int id = getCourierId(courier.getLogin(), courier.getPassword());
                 courierIdsToDelete.add(id);
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
             throw new AssertionError("Ожидался статус 400, но курьер был создан (статус 201).");
         }
 
         response.then().assertThat()
-                .statusCode(400)
+                .statusCode(SC_BAD_REQUEST)
                 .and()
                 .body("message", equalTo("Недостаточно данных для создания учетной записи"));
     }
@@ -173,26 +157,24 @@ public class CreateCourierTest {
     @DisplayName("Ожидание ошибки 400 при создании курьера без поля first name")
     @Description("Negative test: endpoint /api/v1/courier")
     public void createNewCourierWithoutFirstName() {
-        Courier courier = new Courier("alpav9194", "1234");
 
-        Response response =
-                given()
-                        .header("Content-type", "application/json")
-                        .and()
-                        .body(courier.toJson())
-                        .when()
-                        .post("/api/v1/courier");
+        Courier courier = new Courier(faker.name().username(), "1234");
 
-        if (response.getStatusCode() == 201) {
+        logger.info("Создание курьера с логином: " + courier.getLogin());
+
+        Response response = apiClient.createCourier(courier);
+
+        if (response.getStatusCode() == SC_CREATED) {
             try {
                 int id = getCourierId(courier.getLogin(), courier.getPassword());
                 courierIdsToDelete.add(id);
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
             throw new AssertionError("Ожидался статус 400, но курьер был создан (статус 201).");
         }
 
         response.then().assertThat()
-                .statusCode(400)
+                .statusCode(SC_BAD_REQUEST)
                 .and()
                 .body("message", equalTo("Недостаточно данных для создания учетной записи"));
     }
@@ -201,17 +183,12 @@ public class CreateCourierTest {
     @DisplayName("Ожидание ошибки 400 при создании курьера без всех полей")
     @Description("Negative test: endpoint /api/v1/courier")
     public void createNewCourierWithoutAllFields() {
-        String json = "{ \"login\": \""  + "\", \"password\": \""  + "\", \"firstName\": \""  + "\" }";
+        Courier courier = new Courier();
 
-        Response response =
-                given()
-                        .header("Content-type", "application/json")
-                        .and()
-                        .body(json)
-                        .when()
-                        .post("/api/v1/courier");
+        Response response = apiClient.createCourier(courier);
+
         response.then().assertThat()
-                .statusCode(400)
+                .statusCode(SC_BAD_REQUEST)
                 .and()
                 .body("message", equalTo("Недостаточно данных для создания учетной записи"));
     }

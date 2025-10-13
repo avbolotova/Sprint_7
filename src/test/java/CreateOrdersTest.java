@@ -1,49 +1,54 @@
 import io.qameta.allure.Description;
 import io.qameta.allure.junit4.DisplayName;
-import io.restassured.RestAssured;
 import io.restassured.response.Response;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
-import static io.restassured.RestAssured.given;
+import static org.apache.http.HttpStatus.SC_CREATED;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
+@RunWith(Parameterized.class)
 public class CreateOrdersTest {
+
+    private ApiClient apiClient;
+    private final String[] colors;
+    private int track;
+    private boolean orderCreated;
+
+    public CreateOrdersTest(String[] colors, String testName) {
+        this.colors = colors;
+    }
+
+    @Parameterized.Parameters(name = "{index}: {1}")
+    public static Object[][] getData() {
+        return new Object[][] {
+                {new String[]{"BLACK"}, "Создание заказа с цветом BLACK"},
+                {new String[]{"GREY"}, "Создание заказа с цветом GREY"},
+                {new String[]{"BLACK", "GREY"}, "Создание заказа с цветами BLACK и GREY"},
+                {new String[]{}, "Создание заказа без указания цвета"}
+        };
+    }
 
     @Before
     public void setUp() {
-        RestAssured.baseURI = "https://qa-scooter.praktikum-services.ru";
+        apiClient = new ApiClient();
+        orderCreated = false;
+    }
+
+    @After
+    public void tearDown() {
+        if (orderCreated) {
+            apiClient.cancelOrder(track);
+        }
     }
 
     @Test
-    @DisplayName("Создание заказа с цветом BLACK")
+    @DisplayName("Параметризованный тест создания заказа")
     @Description("Positive test: endpoint /api/v1/orders")
-    public void createOrderWithBlackColor() {
-        createOrderWithColors(new String[]{"BLACK"});
-    }
-
-    @Test
-    @DisplayName("Создание заказа с цветом GREY")
-    @Description("Positive test: endpoint /api/v1/orders")
-    public void createOrderWithGreyColor() {
-        createOrderWithColors(new String[]{"GREY"});
-    }
-
-    @Test
-    @DisplayName("Создание заказа с цветами BLACK и GREY")
-    @Description("Positive test: endpoint /api/v1/orders")
-    public void createOrderWithBlackAndGreyColors() {
-        createOrderWithColors(new String[]{"BLACK", "GREY"});
-    }
-
-    @Test
-    @DisplayName("Создание заказа без указания цвета")
-    @Description("Positive test: endpoint /api/v1/orders")
-    public void createOrderWithoutColor() {
-        createOrderWithColors(new String[]{});
-    }
-
-    private void createOrderWithColors(String[] colors) {
+    public void createOrderWithColors() {
         StringBuilder jsonBuilder = new StringBuilder();
         jsonBuilder.append("{ ")
                 .append("\"firstName\": \"Sakura\", ")
@@ -64,16 +69,14 @@ public class CreateOrdersTest {
 
         String orderJson = jsonBuilder.toString();
 
-        Response response =
-                given()
-                        .header("Content-type", "application/json")
-                        .body(orderJson)
-                        .when()
-                        .post("/api/v1/orders");
+        Response response = apiClient.createOrder(orderJson);
 
         response.then().assertThat()
-                .statusCode(201)
+                .statusCode(SC_CREATED)
                 .and()
                 .body("track", notNullValue());
+
+        track = response.jsonPath().getInt("track");
+        orderCreated = true;
     }
 }

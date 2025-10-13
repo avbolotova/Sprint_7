@@ -1,30 +1,29 @@
 import io.qameta.allure.Description;
 import io.qameta.allure.junit4.DisplayName;
-import io.restassured.RestAssured;
 import io.restassured.response.Response;
 import org.junit.Before;
 import org.junit.Test;
-
-import static io.restassured.RestAssured.given;
+import static org.apache.http.HttpStatus.SC_OK;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
 public class ListOrdersTest {
 
+    private ApiClient apiClient;
+
     @Before
     public void setUp() {
-        RestAssured.baseURI = "https://qa-scooter.praktikum-services.ru";
+        apiClient = new ApiClient();
     }
 
     @Test
     @DisplayName("Получение списка заказов без параметров")
     @Description("Positive test: endpoint /api/v1/orders")
     public void getListOrdersWithoutParameters() {
-        given()
-                .when()
-                .get("/api/v1/orders")
-                .then()
-                .assertThat()
-                .statusCode(200)
+
+        Response response = apiClient.getOrdersList();
+
+        response.then().assertThat()
+                .statusCode(SC_OK)
                 .and()
                 .body("orders", notNullValue())
                 .body("pageInfo", notNullValue())
@@ -35,13 +34,10 @@ public class ListOrdersTest {
     @DisplayName("Проверка структуры ответа при получении списка заказов")
     @Description("Positive test: endpoint /api/v1/orders")
     public void checkOrdersListResponseStructure() {
-        Response response =
-                given()
-                        .when()
-                        .get("/api/v1/orders");
+        Response response = apiClient.getOrdersList();
 
         response.then().assertThat()
-                .statusCode(200)
+                .statusCode(SC_OK)
                 .and()
                 .body("orders", notNullValue())
                 .body("pageInfo", notNullValue())
