@@ -1,10 +1,15 @@
+package tests;
+
 import com.github.javafaker.Faker;
 import io.qameta.allure.Description;
 import io.qameta.allure.junit4.DisplayName;
 import io.restassured.response.Response;
+import models.Courier;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import steps.ApiClient;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;

@@ -1,8 +1,12 @@
+package tests;
+
 import io.qameta.allure.Description;
 import io.qameta.allure.junit4.DisplayName;
 import io.restassured.response.Response;
 import org.junit.Before;
 import org.junit.Test;
+import steps.ApiClient;
+
 import static org.apache.http.HttpStatus.SC_OK;
 import static org.hamcrest.CoreMatchers.notNullValue;
 

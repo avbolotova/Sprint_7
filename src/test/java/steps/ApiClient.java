@@ -1,8 +1,12 @@
+package steps;
 import io.restassured.builder.RequestSpecBuilder;
 import io.restassured.http.ContentType;
 import io.restassured.response.Response;
 import io.restassured.specification.RequestSpecification;
+import models.Courier;
+import models.OrderCancellation;
 
+import static io.qameta.allure.Allure.step;
 import static io.restassured.RestAssured.given;
 
 public class ApiClient {
@@ -20,6 +24,7 @@ public class ApiClient {
             .build();
 
     public Response createCourier(Courier courier) {
+        step("POST-запрос создания курьера " + courier.getLogin());
         return given()
                 .header("Content-type", "application/json")
                 .body(courier)
@@ -28,6 +33,7 @@ public class ApiClient {
     }
 
     public Response loginCourier(Courier courier) {
+        step("POST-запрос логина курьера " + courier.getLogin());
         return given()
                 .spec(baseSpec)
                 .header("Content-type", "application/json")
@@ -37,30 +43,36 @@ public class ApiClient {
     }
 
     public Response deleteCourier(int id) {
+        step("DELETE-запрос удаления курьера по ID: " + id);
         return given()
                 .spec(baseSpec)
                 .when()
                 .delete(COURIER_DELETE_ENDPOINT + id);
     }
 
-    public Response createOrder(String orderJson) {
+    public Response createOrder(Object order) {
+        step("POST-запрос создания заказа" );
         return given()
                 .spec(baseSpec)
                 .header("Content-type", "application/json")
-                .body(orderJson)
+                .body(order)
                 .when()
                 .post(ORDER_ENDPOINT);
     }
 
     public Response cancelOrder(int track) {
+        step("PUT-запрос отмены заказа " + track);
+        OrderCancellation cancellation = new OrderCancellation(track);
         return given()
                 .spec(baseSpec)
                 .header("Content-type", "application/json")
-                .body("{\"track\": " + track + "}")
+                .body(cancellation)
                 .when()
                 .put(ORDER_CANCEL_ENDPOINT);
     }
+
     public Response getOrdersList() {
+        step("GET-запрос получение списка заказов");
         return given()
                 .spec(baseSpec)
                 .when()
